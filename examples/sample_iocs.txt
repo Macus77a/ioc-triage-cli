@@ -1,5 +1,5 @@
 # Sample IOC list for local testing.
-# Used later for --file mode.
+# Used for --file mode.
 
 192.0.2.10
 example.com

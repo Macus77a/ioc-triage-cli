@@ -9,6 +9,7 @@ from ioc_triage.enrichers.virustotal import (
     check_url_virustotal,
 )
 from ioc_triage.enrichers.dns_lookup import resolve_domain
+from ioc_triage.verdict import calculate_verdict
 
 
 def parse_args():
@@ -35,6 +36,8 @@ def analyze_single_ioc(ioc):
 
     print(f"IOC: {ioc}")
     print(f"Type: {ioc_type}")
+    
+    enrichment_results = []
 
     if ioc_type == "ipv4":
         abuseipdb_result = check_ip_abuseipdb(ioc)
@@ -42,25 +45,34 @@ def analyze_single_ioc(ioc):
 
         print(f"AbuseIPDB: {abuseipdb_result}")
         print(f"VirusTotal: {virustotal_result}")
-
+        enrichment_results.append(abuseipdb_result)
+        enrichment_results.append(virustotal_result)
+    
     elif ioc_type == "domain":
         dns_result = resolve_domain(ioc)
         virustotal_result = check_domain_virustotal(ioc)
         
         print(f"DNS Lookup: {dns_result}")
         print(f"VirusTotal: {virustotal_result}")
+        enrichment_results.append(dns_result)
+        enrichment_results.append(virustotal_result)
 
     elif ioc_type == "url":
         virustotal_result = check_url_virustotal(ioc)
         print(f"VirusTotal: {virustotal_result}")
-
+        enrichment_results.append(virustotal_result)
+    
     elif ioc_type in ("md5", "sha256"):
         virustotal_result = check_hash_virustotal(ioc)
         print(f"VirusTotal: {virustotal_result}")
-    
+        enrichment_results.append(virustotal_result)
+
     elif ioc_type == "unknown":
         print("Status: unsupported or invalid IOC format")
 
+    if enrichment_results:
+        verdict_result = calculate_verdict(enrichment_results)
+        print(f"Verdict: {verdict_result}")
 
 def main():
     args = parse_args()
