@@ -1,0 +1,31 @@
+{
+    "ioc": "185.220.101.45",
+    "ioc_type": "ipv4",
+    "verdict": "MALICIOUS",
+    "severity_score": 100,
+    "sources": [
+        {
+            "source": "AbuseIPDB",
+            "status": "ok",
+            "abuse_confidence_score": 100,
+            "total_reports": 115,
+            "country_code": "DE",
+            "isp": "Network for Tor-Exit traffic.",
+            "domain": "for-privacy.net",
+            "usage_type": "Commercial"
+        },
+        {
+            "source": "VirusTotal",
+            "status": "ok",
+            "malicious": 19,
+            "suspicious": 1,
+            "harmless": 42,
+            "undetected": 29
+        }
+    ],
+    "recommendations": [
+        "Block or monitor the IOC according to internal policy.",
+        "Review related authentication, proxy, firewall or endpoint logs.",
+        "Escalate to SOC Tier 2 if this IOC is linked to internal assets."
+    ]
+}

@@ -1,0 +1,10 @@
+{
+    "ioc": "not-a-valid-ioc",
+    "ioc_type": "unknown",
+    "verdict": "CLEAN / UNKNOWN",
+    "severity_score": 0,
+    "sources": [],
+    "recommendations": [
+        "Unsupported or invalid IOC format. Verify the input value."
+    ]
+}

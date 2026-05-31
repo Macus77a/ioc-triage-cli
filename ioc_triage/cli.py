@@ -10,6 +10,7 @@ from ioc_triage.enrichers.virustotal import (
 )
 from ioc_triage.enrichers.dns_lookup import resolve_domain
 from ioc_triage.verdict import calculate_verdict
+from ioc_triage.reporter import print_report, export_json
 
 
 def parse_args():
@@ -28,23 +29,23 @@ def parse_args():
         help="Path to a file containing IOC values, one per line",
     )
 
+    parser.add_argument(
+        "--export",
+        help="Export the report in JSON format to the specified file",
+    )
+
     return parser.parse_args()
 
 
 def analyze_single_ioc(ioc):
     ioc_type = detect_ioc_type(ioc)
 
-    print(f"IOC: {ioc}")
-    print(f"Type: {ioc_type}")
-    
     enrichment_results = []
 
     if ioc_type == "ipv4":
         abuseipdb_result = check_ip_abuseipdb(ioc)
         virustotal_result = check_ip_virustotal(ioc)
 
-        print(f"AbuseIPDB: {abuseipdb_result}")
-        print(f"VirusTotal: {virustotal_result}")
         enrichment_results.append(abuseipdb_result)
         enrichment_results.append(virustotal_result)
     
@@ -52,27 +53,41 @@ def analyze_single_ioc(ioc):
         dns_result = resolve_domain(ioc)
         virustotal_result = check_domain_virustotal(ioc)
         
-        print(f"DNS Lookup: {dns_result}")
-        print(f"VirusTotal: {virustotal_result}")
         enrichment_results.append(dns_result)
         enrichment_results.append(virustotal_result)
 
     elif ioc_type == "url":
         virustotal_result = check_url_virustotal(ioc)
-        print(f"VirusTotal: {virustotal_result}")
         enrichment_results.append(virustotal_result)
     
     elif ioc_type in ("md5", "sha256"):
         virustotal_result = check_hash_virustotal(ioc)
-        print(f"VirusTotal: {virustotal_result}")
         enrichment_results.append(virustotal_result)
 
     elif ioc_type == "unknown":
-        print("Status: unsupported or invalid IOC format")
+        return {
+            "ioc": ioc,
+            "ioc_type": ioc_type,
+            "verdict": "CLEAN / UNKNOWN",
+            "severity_score": 0,
+            "sources": [],
+            "recommendations": [
+                "Unsupported or invalid IOC format. Verify the input value."
+            ],
+        }
 
-    if enrichment_results:
-        verdict_result = calculate_verdict(enrichment_results)
-        print(f"Verdict: {verdict_result}")
+    verdict_result = calculate_verdict(enrichment_results)
+
+    result = {
+        "ioc": ioc,
+        "ioc_type": ioc_type,
+        "verdict": verdict_result.get("verdict"),
+        "severity_score": verdict_result.get("severity_score"),
+        "sources": enrichment_results,
+        "recommendations": verdict_result.get("recommendations", []),
+    }
+
+    return result
 
 def main():
     args = parse_args()
@@ -86,7 +101,8 @@ def main():
                     if not ioc or ioc.startswith("#"):
                         continue
 
-                    analyze_single_ioc(ioc)
+                    result = analyze_single_ioc(ioc)
+                    print_report(result)
                     print()
 
         except FileNotFoundError:
@@ -95,7 +111,12 @@ def main():
         return
 
     if args.ioc:
-        analyze_single_ioc(args.ioc)
+        result = analyze_single_ioc(args.ioc)
+        print_report(result)
+
+        if args.export:
+            export_json(result, args.export)
+
         return
 
     print("Error: provide an IOC or use --file")
