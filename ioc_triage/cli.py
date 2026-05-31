@@ -4,6 +4,8 @@ from ioc_triage.detectors import detect_ioc_type
 
 from ioc_triage.enrichers.abuseipdb import check_ip_abuseipdb
 
+from ioc_triage.enrichers.virustotal import check_hash_virustotal, check_ip_virustotal, check_domain_virustotal
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -29,13 +31,23 @@ def analyze_single_ioc(ioc):
 
     print(f"IOC: {ioc}")
     print(f"Type: {ioc_type}")
-    
+
     if ioc_type == "ipv4":
         abuseipdb_result = check_ip_abuseipdb(ioc)
+        virustotal_result = check_ip_virustotal(ioc)
+
         print(f"AbuseIPDB: {abuseipdb_result}")
+        print(f"VirusTotal: {virustotal_result}")
 
+    elif ioc_type == "domain":
+        virustotal_result = check_domain_virustotal(ioc)
+        print(f"VirusTotal: {virustotal_result}")
 
-    if ioc_type == "unknown":
+    elif ioc_type in ("md5", "sha256"):
+        virustotal_result = check_hash_virustotal(ioc)
+        print(f"VirusTotal: {virustotal_result}")
+
+    elif ioc_type == "unknown":
         print("Status: unsupported or invalid IOC format")
 
 
