@@ -1,5 +1,6 @@
 import requests
 import base64
+
 from ioc_triage.config import VIRUSTOTAL_API_KEY, REQUEST_TIMEOUT
 
 

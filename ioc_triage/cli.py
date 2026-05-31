@@ -8,6 +8,7 @@ from ioc_triage.enrichers.virustotal import (
     check_domain_virustotal,
     check_url_virustotal,
 )
+from ioc_triage.enrichers.dns_lookup import resolve_domain
 
 
 def parse_args():
@@ -43,7 +44,10 @@ def analyze_single_ioc(ioc):
         print(f"VirusTotal: {virustotal_result}")
 
     elif ioc_type == "domain":
+        dns_result = resolve_domain(ioc)
         virustotal_result = check_domain_virustotal(ioc)
+        
+        print(f"DNS Lookup: {dns_result}")
         print(f"VirusTotal: {virustotal_result}")
 
     elif ioc_type == "url":
