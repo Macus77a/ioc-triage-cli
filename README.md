@@ -2,7 +2,7 @@
 
 A small Python CLI for the first step of SOC triage: taking an indicator, figuring out what type it is, and preparing the project for passive enrichment and verdict scoring.
 
-Right now it does one thing — IOC type detection — and the code is structured so the next stages can be added without turning the CLI into one large file.
+Right now it detects IOC types and performs basic AbuseIPDB enrichment for IPv4 indicators when the API key is configured. The code is structured so the next stages can be added without turning the CLI into one large file.
 
 This is not a SIEM, scanner, sandbox, or exploitation tool. It's a learning and portfolio project built around a realistic SOC triage workflow.
 
@@ -20,6 +20,8 @@ Current supported types:
 - MD5
 - SHA256
 
+For IPv4 indicators, the tool can also query AbuseIPDB and print basic reputation data.
+
 Unsupported or invalid input returns `unknown`.
 
 Example:
@@ -31,6 +33,15 @@ python -m ioc_triage 185.220.101.45
 ```text
 IOC: 185.220.101.45
 Type: ipv4
+AbuseIPDB: {'source': 'AbuseIPDB', 'status': 'ok', 'abuse_confidence_score': 0, 'total_reports': 0, 'country_code': 'US', 'isp': 'Example ISP', 'domain': 'example.com', 'usage_type': 'Data Center/Web Hosting/Transit'}
+```
+
+If AbuseIPDB is not configured, IPv4 enrichment is skipped:
+
+```text
+IOC: 185.220.101.45
+Type: ipv4
+AbuseIPDB: {'source': 'AbuseIPDB', 'status': 'skipped', 'message': 'AbuseIPDB API key not configured.'}
 ```
 
 If the input is not recognized:
@@ -68,7 +79,7 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-The current detection and CLI logic mainly use the Python standard library. Some dependencies are already included for tests and planned next stages.
+The detection logic mainly uses the Python standard library. AbuseIPDB enrichment uses `requests`, and environment variable loading uses `python-dotenv`.
 
 ---
 
@@ -109,6 +120,7 @@ Example output:
 ```text
 IOC: 192.0.2.10
 Type: ipv4
+AbuseIPDB: {'source': 'AbuseIPDB', 'status': 'skipped', 'message': 'AbuseIPDB API key not configured.'}
 
 IOC: example.com
 Type: domain
@@ -162,14 +174,16 @@ Main files:
 
 | File | Purpose |
 |---|---|
-| `ioc_triage/cli.py` | Argument parsing, single IOC mode, and file mode |
+| `ioc_triage/cli.py` | Argument parsing, single IOC mode, file mode, and calling IPv4 enrichment |
 | `ioc_triage/detectors.py` | IOC type detection logic |
+| `ioc_triage/enrichers/abuseipdb.py` | Basic AbuseIPDB lookup for IPv4 indicators |
+| `ioc_triage/config.py` | Loads API keys and request timeout from environment variables |
 | `ioc_triage/__main__.py` | Allows the tool to run with `python -m ioc_triage` |
 | `examples/sample_iocs.txt` | Example input file for file mode |
 | `tests/test_detectors.py` | Basic tests for detection logic |
-| `.env.example` | Placeholder for future API keys |
+| `.env.example` | Example environment configuration |
 
-The placeholder modules (`config.py`, `models.py`, `reporter.py`, `verdict.py`, `test_verdict.py`, and the files inside `enrichers/`) are part of the planned architecture. They are present in the repository to show the direction of the project, not to suggest that enrichment, scoring, or reporting are already implemented.
+The remaining placeholder modules (`models.py`, `reporter.py`, `verdict.py`, `test_verdict.py`, `dns_lookup.py`, and `virustotal.py`) are part of the planned architecture. They are present in the repository to show the direction of the project, not to suggest that DNS lookup, VirusTotal enrichment, scoring, or reporting are already implemented.
 
 ---
 
@@ -196,6 +210,24 @@ Order matters here — some values can match multiple patterns depending on how 
 
 ---
 
+## AbuseIPDB enrichment
+
+IPv4 indicators are passed to `check_ip_abuseipdb()` after the type is detected.
+
+The current AbuseIPDB integration handles:
+
+- missing API key
+- successful response
+- rate limit response
+- non-200 HTTP response
+- timeout
+- request error
+- invalid JSON response
+
+The result is returned as a small dictionary and printed by the CLI. This is still an early enrichment stage, but it already shows how the project will connect IOC detection with passive Threat Intelligence sources.
+
+---
+
 ## Tests
 
 Run tests with:
@@ -210,14 +242,19 @@ The current working tests cover valid examples for each supported IOC type and s
 
 ## Environment variables
 
-The repository includes `.env.example` for future API integrations:
+The project loads configuration from environment variables using `python-dotenv`.
+
+For the current code, `.env` should contain:
 
 ```env
 VIRUSTOTAL_API_KEY=
 ABUSEIPDB_API_KEY=
+REQUEST_TIMEOUT=10
 ```
 
-API key loading is not implemented in the current working CLI yet. The actual `.env` file should not be committed.
+`ABUSEIPDB_API_KEY` is used by the current IPv4 enrichment logic. `VIRUSTOTAL_API_KEY` is already present for the planned VirusTotal integration.
+
+The actual `.env` file should not be committed.
 
 ---
 
@@ -232,15 +269,15 @@ Input IOC
   → Print or export report
 ```
 
-The current version covers the first part of this workflow.
+The current version covers IOC type detection and the first basic enrichment source for IPv4 indicators.
 
-Planned enrichment sources:
+Enrichment sources:
 
-| Source | Planned purpose |
-|---|---|
-| AbuseIPDB | IP reputation lookup |
-| VirusTotal | IP, domain, URL, and hash reputation lookup |
-| DNS lookup | Basic domain resolution |
+| Source | Status | Purpose |
+|---|---|---|
+| AbuseIPDB | Basic IPv4 lookup implemented | IP reputation lookup |
+| VirusTotal | Planned | IP, domain, URL, and hash reputation lookup |
+| DNS lookup | Planned | Basic domain resolution |
 
 Planned verdict levels:
 
@@ -265,11 +302,11 @@ Done:
 - [x] Basic detector tests
 - [x] `.env.example`
 - [x] Placeholder modules for next stages
+- [x] Load configuration from environment variables
+- [x] Add AbuseIPDB enrichment for IPv4 indicators
 
 Next:
 
-- [ ] Load configuration from environment variables
-- [ ] Add AbuseIPDB enrichment for IPv4 indicators
 - [ ] Add VirusTotal enrichment for IPs, domains, URLs, and hashes
 - [ ] Add DNS lookup for domains
 - [ ] Normalize enrichment results
