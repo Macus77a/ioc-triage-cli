@@ -1,10 +1,13 @@
 import argparse
 
 from ioc_triage.detectors import detect_ioc_type
-
 from ioc_triage.enrichers.abuseipdb import check_ip_abuseipdb
-
-from ioc_triage.enrichers.virustotal import check_hash_virustotal, check_ip_virustotal, check_domain_virustotal
+from ioc_triage.enrichers.virustotal import (
+    check_hash_virustotal,
+    check_ip_virustotal,
+    check_domain_virustotal,
+    check_url_virustotal,
+)
 
 
 def parse_args():
@@ -43,10 +46,14 @@ def analyze_single_ioc(ioc):
         virustotal_result = check_domain_virustotal(ioc)
         print(f"VirusTotal: {virustotal_result}")
 
+    elif ioc_type == "url":
+        virustotal_result = check_url_virustotal(ioc)
+        print(f"VirusTotal: {virustotal_result}")
+
     elif ioc_type in ("md5", "sha256"):
         virustotal_result = check_hash_virustotal(ioc)
         print(f"VirusTotal: {virustotal_result}")
-
+    
     elif ioc_type == "unknown":
         print("Status: unsupported or invalid IOC format")
 
