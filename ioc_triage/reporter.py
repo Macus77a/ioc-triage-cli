@@ -33,7 +33,7 @@ def build_key_findings(source):
             f"Harmless: {harmless}"
         )
 
-    if source_name == "DNS":
+    if source_name == "DNS Lookup":
         resolved_ips = source.get("resolved_ips", [])
         if resolved_ips:
             return f"Resolved IPs: {', '.join(resolved_ips)}"

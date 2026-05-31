@@ -1,18 +1,18 @@
 # ioc-triage-cli
 
-A small Python CLI for the first step of SOC triage: taking an indicator, figuring out what type it is, and enriching it with passive Threat Intelligence sources before later verdict scoring and reporting stages.
+A small Python CLI for the first step of SOC triage: taking an Indicator of Compromise, detecting its type, enriching it with passive Threat Intelligence sources, calculating a basic verdict, and printing or exporting a report.
 
-Right now it detects IOC types and performs basic enrichment using AbuseIPDB for IPv4 indicators, VirusTotal for IPv4/domain/URL/hash indicators, and DNS lookup for domains. The code is structured so the next stages can be added without turning the CLI into one large file.
+The tool currently supports IOC type detection, AbuseIPDB enrichment for IPv4 indicators, VirusTotal enrichment for IPv4/domain/URL/hash indicators, DNS A record lookup for domains, basic verdict scoring, formatted terminal reports with Rich, and JSON export for single IOC analysis.
 
-This is not a SIEM, scanner, sandbox, or exploitation tool. It's a learning and portfolio project built around a realistic SOC triage workflow.
+This is not a SIEM, scanner, sandbox, or exploitation tool. It is a learning and portfolio project built around a realistic SOC triage workflow.
 
 ---
 
 ## What it does
 
-The tool accepts an IOC from the command line or from a text file, identifies its type, and runs passive enrichment depending on the IOC type.
+The tool accepts an IOC from the command line or from a text file, identifies its type, runs passive enrichment depending on the IOC type, calculates a basic verdict, and displays a readable triage report.
 
-Current supported types:
+Current supported IOC types:
 
 - IPv4
 - domain
@@ -26,60 +26,82 @@ Current enrichment behavior:
 - domains are resolved with DNS lookup and checked with VirusTotal
 - URLs are checked with VirusTotal
 - MD5 and SHA256 hashes are checked with VirusTotal
+- unsupported or invalid input returns `unknown`
 
-Unsupported or invalid input returns `unknown`.
+Current verdict levels:
 
-Example:
+- `MALICIOUS`
+- `SUSPICIOUS`
+- `CLEAN / UNKNOWN`
+
+The project intentionally avoids calling an IOC `SAFE`. Lack of detections does not prove that an indicator is harmless.
+
+---
+
+## Example output
+
+Example command:
 
 ```bash
 python -m ioc_triage 185.220.101.45
 ```
 
-```text
-IOC: 185.220.101.45
-Type: ipv4
-AbuseIPDB: {'source': 'AbuseIPDB', 'status': 'ok', 'abuse_confidence_score': 0, 'total_reports': 0, 'country_code': 'US', 'isp': 'Example ISP', 'domain': 'example.com', 'usage_type': 'Data Center/Web Hosting/Transit'}
-VirusTotal: {'source': 'VirusTotal', 'status': 'ok', 'malicious': 0, 'suspicious': 0, 'harmless': 61, 'undetected': 30}
-```
-
-If an API key is not configured, that enrichment source is skipped:
+Example report:
 
 ```text
-IOC: 185.220.101.45
-Type: ipv4
-AbuseIPDB: {'source': 'AbuseIPDB', 'status': 'skipped', 'message': 'AbuseIPDB API key not configured.'}
-VirusTotal: {'source': 'VirusTotal', 'status': 'skipped', 'message': 'VirusTotal API key not configured.'}
-```
+╭────────────── IOC Triage Report ──────────────╮
+│ IOC: 185.220.101.45                           │
+│ Type: ipv4                                    │
+│ Verdict: MALICIOUS                            │
+│ Severity score: 100                           │
+╰───────────────────────────────────────────────╯
 
-Example domain analysis:
+            Threat Intelligence Sources
+┏━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Source    ┃ Status ┃ Key Findings                         ┃
+┡━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ AbuseIPDB │ ok     │ Abuse score: 100, Reports: 115, ...  │
+│ VirusTotal│ ok     │ Malicious: 19, Suspicious: 1, ...     │
+└───────────┴────────┴──────────────────────────────────────┘
 
-```bash
-python -m ioc_triage example.com
-```
-
-```text
-IOC: example.com
-Type: domain
-DNS Lookup: {'source': 'DNS Lookup', 'status': 'ok', 'resolved_ips': ['93.184.216.34']}
-VirusTotal: {'source': 'VirusTotal', 'status': 'ok', 'malicious': 0, 'suspicious': 0, 'harmless': 61, 'undetected': 30}
+Recommendations:
+- Block or monitor the IOC according to internal policy.
+- Review related authentication, proxy, firewall or endpoint logs.
+- Escalate to SOC Tier 2 if this IOC is linked to internal assets.
 ```
 
 If the input is not recognized:
 
+```bash
+python -m ioc_triage not-a-valid-ioc
+```
+
 ```text
-IOC: not an ioc
-Type: unknown
-Status: unsupported or invalid IOC format
+╭─── IOC Triage Report ────╮
+│ IOC: not-a-valid-ioc     │
+│ Type: unknown            │
+│ Verdict: CLEAN / UNKNOWN │
+│ Severity score: 0        │
+╰──────────────────────────╯
+
+Recommendations:
+- Unsupported or invalid IOC format. Verify the input value.
 ```
 
 ---
 
 ## Getting started
 
+Clone the repository:
+
 ```bash
 git clone <repository-url>
 cd ioc-triage-cli
+```
 
+Create a virtual environment:
+
+```bash
 python -m venv .venv
 ```
 
@@ -99,7 +121,39 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-The detection logic mainly uses the Python standard library. AbuseIPDB and VirusTotal enrichment use `requests`, DNS lookup uses `dnspython`, and environment variable loading uses `python-dotenv`.
+The project uses:
+
+- `requests` for AbuseIPDB and VirusTotal API requests
+- `python-dotenv` for loading environment variables
+- `dnspython` for DNS lookup
+- `rich` for formatted terminal output
+- `pytest` for tests
+
+---
+
+## Environment variables
+
+The project loads configuration from environment variables using `python-dotenv`.
+
+Create a local `.env` file based on `.env.example`:
+
+```env
+VIRUSTOTAL_API_KEY=
+ABUSEIPDB_API_KEY=
+REQUEST_TIMEOUT=10
+```
+
+Environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `ABUSEIPDB_API_KEY` | API key for AbuseIPDB IPv4 enrichment |
+| `VIRUSTOTAL_API_KEY` | API key for VirusTotal IPv4, domain, URL, MD5, and SHA256 enrichment |
+| `REQUEST_TIMEOUT` | Timeout value for HTTP requests and DNS lookup |
+
+The actual `.env` file should not be committed.
+
+If an API key is missing, the related enrichment source is skipped and the report continues with the remaining available data.
 
 ---
 
@@ -123,11 +177,10 @@ python -m ioc_triage --file examples/sample_iocs.txt
 
 The file should contain one IOC per line. Empty lines and lines starting with `#` are skipped.
 
-Example input:
+Example input file:
 
 ```text
 # Sample IOC list for local testing.
-# Used later for --file mode.
 192.0.2.10
 example.com
 http://example.com/login
@@ -135,30 +188,52 @@ http://example.com/login
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ```
 
-Example output:
+Export a single IOC report to JSON:
 
-```text
-IOC: 192.0.2.10
-Type: ipv4
-AbuseIPDB: {'source': 'AbuseIPDB', 'status': 'skipped', 'message': 'AbuseIPDB API key not configured.'}
-VirusTotal: {'source': 'VirusTotal', 'status': 'skipped', 'message': 'VirusTotal API key not configured.'}
+```bash
+python -m ioc_triage 185.220.101.45 --export examples/sample_output.json
+```
 
-IOC: example.com
-Type: domain
-DNS Lookup: {'source': 'DNS Lookup', 'status': 'ok', 'resolved_ips': ['93.184.216.34']}
-VirusTotal: {'source': 'VirusTotal', 'status': 'skipped', 'message': 'VirusTotal API key not configured.'}
+Current limitation: JSON export is implemented for single IOC mode. File mode prints reports for each IOC, but does not yet export all results into one combined JSON file.
 
-IOC: http://example.com/login
-Type: url
-VirusTotal: {'source': 'VirusTotal', 'status': 'skipped', 'message': 'VirusTotal API key not configured.'}
+---
 
-IOC: 44d88612fea8a8f36de82e1278abb02f
-Type: md5
-VirusTotal: {'source': 'VirusTotal', 'status': 'skipped', 'message': 'VirusTotal API key not configured.'}
+## JSON export example
 
-IOC: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-Type: sha256
-VirusTotal: {'source': 'VirusTotal', 'status': 'skipped', 'message': 'VirusTotal API key not configured.'}
+Example exported report:
+
+```json
+{
+    "ioc": "185.220.101.45",
+    "ioc_type": "ipv4",
+    "verdict": "MALICIOUS",
+    "severity_score": 100,
+    "sources": [
+        {
+            "source": "AbuseIPDB",
+            "status": "ok",
+            "abuse_confidence_score": 100,
+            "total_reports": 115,
+            "country_code": "DE",
+            "isp": "Network for Tor-Exit traffic.",
+            "domain": "for-privacy.net",
+            "usage_type": "Commercial"
+        },
+        {
+            "source": "VirusTotal",
+            "status": "ok",
+            "malicious": 19,
+            "suspicious": 1,
+            "harmless": 42,
+            "undetected": 29
+        }
+    ],
+    "recommendations": [
+        "Block or monitor the IOC according to internal policy.",
+        "Review related authentication, proxy, firewall or endpoint logs.",
+        "Escalate to SOC Tier 2 if this IOC is linked to internal assets."
+    ]
+}
 ```
 
 ---
@@ -169,7 +244,9 @@ VirusTotal: {'source': 'VirusTotal', 'status': 'skipped', 'message': 'VirusTotal
 ioc-triage-cli/
 │
 ├── examples/
-│   └── sample_iocs.txt
+│   ├── invalid_output.json
+│   ├── sample_iocs.txt
+│   └── sample_output.json
 │
 ├── ioc_triage/
 │   ├── enrichers/
@@ -200,18 +277,23 @@ Main files:
 
 | File | Purpose |
 |---|---|
-| `ioc_triage/cli.py` | Argument parsing, single IOC mode, file mode, and calling enrichment logic |
+| `ioc_triage/cli.py` | Argument parsing, single IOC mode, file mode, enrichment orchestration, verdict calculation, report printing, and JSON export call |
 | `ioc_triage/detectors.py` | IOC type detection logic |
-| `ioc_triage/enrichers/abuseipdb.py` | Basic AbuseIPDB lookup for IPv4 indicators |
-| `ioc_triage/enrichers/virustotal.py` | Basic VirusTotal lookup for IPv4, domains, URLs, MD5 hashes, and SHA256 hashes |
-| `ioc_triage/enrichers/dns_lookup.py` | Basic DNS A record lookup for domains |
+| `ioc_triage/enrichers/abuseipdb.py` | AbuseIPDB lookup for IPv4 indicators |
+| `ioc_triage/enrichers/virustotal.py` | VirusTotal lookup for IPv4, domains, URLs, MD5 hashes, and SHA256 hashes |
+| `ioc_triage/enrichers/dns_lookup.py` | DNS A record lookup for domains |
+| `ioc_triage/verdict.py` | Basic verdict and severity score calculation |
+| `ioc_triage/reporter.py` | Rich terminal report and JSON export logic |
 | `ioc_triage/config.py` | Loads API keys and request timeout from environment variables |
 | `ioc_triage/__main__.py` | Allows the tool to run with `python -m ioc_triage` |
 | `examples/sample_iocs.txt` | Example input file for file mode |
-| `tests/test_detectors.py` | Basic tests for detection logic |
+| `examples/sample_output.json` | Example JSON report for a malicious IPv4 indicator |
+| `examples/invalid_output.json` | Example JSON report for an invalid IOC |
+| `tests/test_detectors.py` | Tests for IOC detection logic |
+| `tests/test_verdict.py` | Placeholder for verdict tests |
 | `.env.example` | Example environment configuration |
 
-The remaining placeholder modules (`models.py`, `reporter.py`, `verdict.py`, and `test_verdict.py`) are part of the planned architecture. They are present in the repository to show the direction of the project, not to suggest that scoring or reporting is already implemented.
+`models.py` is currently reserved for future normalized result models.
 
 ---
 
@@ -226,21 +308,32 @@ Detection lives in `detectors.py` and is split into small functions:
 - `is_sha256()`
 - `detect_ioc_type()`
 
-The CLI passes input to `detect_ioc_type()` and prints the result. This keeps input/output handling separate from classification logic.
-
 Current detection order:
 
 ```text
 URL → IPv4 → MD5 → SHA256 → domain → unknown
 ```
 
-Order matters here — some values can match multiple patterns depending on how broadly you define them.
+Order matters because some values can match multiple patterns depending on how broadly they are defined.
 
 ---
 
-## AbuseIPDB enrichment
+## Enrichment logic
 
-IPv4 indicators are passed to `check_ip_abuseipdb()` after the type is detected.
+After the IOC type is detected, the CLI calls the matching enrichment functions.
+
+| IOC type | Enrichment sources |
+|---|---|
+| IPv4 | AbuseIPDB, VirusTotal |
+| domain | DNS Lookup, VirusTotal |
+| URL | VirusTotal |
+| MD5 | VirusTotal |
+| SHA256 | VirusTotal |
+| unknown | No enrichment; returns unsupported/invalid IOC recommendation |
+
+### AbuseIPDB
+
+IPv4 indicators are passed to `check_ip_abuseipdb()`.
 
 The current AbuseIPDB integration handles:
 
@@ -252,13 +345,18 @@ The current AbuseIPDB integration handles:
 - request error
 - invalid JSON response
 
-The result is returned as a small dictionary and printed by the CLI. This is still an early enrichment stage, but it already shows how the project connects IOC detection with passive Threat Intelligence sources.
+Returned fields include:
 
----
+- `abuse_confidence_score`
+- `total_reports`
+- `country_code`
+- `isp`
+- `domain`
+- `usage_type`
 
-## VirusTotal enrichment
+### VirusTotal
 
-IPv4, domain, URL, MD5, and SHA256 indicators are passed to the proper VirusTotal helper after the type is detected.
+IPv4, domain, URL, MD5, and SHA256 indicators are passed to the proper VirusTotal helper.
 
 The current VirusTotal integration handles:
 
@@ -270,20 +368,18 @@ The current VirusTotal integration handles:
 - request error
 - invalid JSON response
 
-The current output focuses on the basic `last_analysis_stats` values:
+The output focuses on `last_analysis_stats`:
 
 - `malicious`
 - `suspicious`
 - `harmless`
 - `undetected`
 
-This keeps the first version simple while still making the output useful for initial IOC triage.
+For URLs, the tool encodes the URL into the VirusTotal URL identifier before querying the API.
 
----
+### DNS lookup
 
-## DNS lookup
-
-Domain indicators are passed to `resolve_domain()` after the type is detected.
+Domain indicators are passed to `resolve_domain()`.
 
 The current DNS lookup checks A records and handles:
 
@@ -293,7 +389,53 @@ The current DNS lookup checks A records and handles:
 - timeout
 - DNS-related errors
 
-The result is returned as a small dictionary and printed by the CLI before the VirusTotal result for domains.
+The result uses `source: "DNS Lookup"` and returns resolved IPv4 addresses in `resolved_ips` when available.
+
+---
+
+## Verdict logic
+
+Verdict calculation lives in `verdict.py`.
+
+The current scoring is intentionally simple and based on available enrichment results:
+
+### AbuseIPDB rules
+
+| Condition | Verdict impact |
+|---|---|
+| `abuse_confidence_score >= 80` | `MALICIOUS` |
+| `abuse_confidence_score >= 25` | `SUSPICIOUS`, unless already `MALICIOUS` |
+
+### VirusTotal rules
+
+| Condition | Verdict impact |
+|---|---|
+| `malicious >= 5` | `MALICIOUS` |
+| `malicious >= 1` | `SUSPICIOUS`, unless already `MALICIOUS` |
+| `suspicious > 0` | `SUSPICIOUS`, unless already `MALICIOUS` |
+
+If no strong malicious or suspicious signals are found, the result stays as:
+
+```text
+CLEAN / UNKNOWN
+```
+
+This means no strong signal was found in the available sources. It does not mean the IOC is guaranteed to be safe.
+
+---
+
+## Reporting
+
+The reporting layer lives in `reporter.py`.
+
+It currently provides:
+
+- a Rich summary panel with IOC, type, verdict, and severity score
+- a Rich table with Threat Intelligence sources and key findings
+- analyst-style recommendations based on the verdict
+- JSON export through `export_json()`
+
+The report is designed to be readable in the terminal and useful for a junior SOC-style triage workflow.
 
 ---
 
@@ -305,42 +447,31 @@ Run tests with:
 python -m pytest
 ```
 
-The current working tests cover valid examples for each supported IOC type and several invalid inputs, including an invalid IPv4 address and invalid domain formats.
+Current test coverage:
 
-Enrichment modules are not covered by tests yet.
+- valid IPv4 detection
+- valid domain detection
+- valid URL detection
+- valid MD5 detection
+- valid SHA256 detection
+- invalid IPv4 handling
+- invalid domain handling
+- unknown input handling
 
----
-
-## Environment variables
-
-The project loads configuration from environment variables using `python-dotenv`.
-
-For the current code, `.env` should contain:
-
-```env
-VIRUSTOTAL_API_KEY=
-ABUSEIPDB_API_KEY=
-REQUEST_TIMEOUT=10
-```
-
-`ABUSEIPDB_API_KEY` is used by the AbuseIPDB IPv4 enrichment logic. `VIRUSTOTAL_API_KEY` is used by the VirusTotal enrichment logic for IPv4 indicators, domains, URLs, MD5 hashes, and SHA256 hashes. `REQUEST_TIMEOUT` controls request timeouts for API calls and DNS lookup.
-
-The actual `.env` file should not be committed.
+Current limitation: enrichment modules, verdict scoring, reporter output, and JSON export are not fully covered by tests yet.
 
 ---
 
-## Planned workflow
+## Current workflow
 
 ```text
 Input IOC
-  → Detect type
-  → Enrich using passive sources
-  → Normalize results
-  → Score verdict
-  → Print or export report
+  → Detect IOC type
+  → Run matching passive enrichment sources
+  → Calculate basic verdict and severity score
+  → Print formatted terminal report
+  → Optionally export single IOC report to JSON
 ```
-
-The current version covers IOC type detection, basic passive enrichment, and simple terminal output. Normalized result models, verdict scoring, and report export are still planned.
 
 Enrichment sources:
 
@@ -348,17 +479,7 @@ Enrichment sources:
 |---|---|---|
 | AbuseIPDB | Basic IPv4 lookup implemented | IP reputation lookup |
 | VirusTotal | Basic lookup implemented for IPv4, domains, URLs, MD5, and SHA256 | IP, domain, URL, and hash reputation lookup |
-| DNS lookup | Basic A record lookup implemented | Basic domain resolution |
-
-Planned verdict levels:
-
-| Verdict | Meaning |
-|---|---|
-| `MALICIOUS` | Strong malicious signals from enrichment sources |
-| `SUSPICIOUS` | Weak or low-confidence suspicious signals |
-| `UNKNOWN` | No strong signal from the checked sources |
-
-The project avoids calling an IOC `SAFE`. Lack of detection does not prove that an indicator is harmless.
+| DNS Lookup | Basic A record lookup implemented | Domain resolution |
 
 ---
 
@@ -370,23 +491,28 @@ Done:
 - [x] Single IOC mode
 - [x] File mode
 - [x] IOC type detector
-- [x] Basic detector tests
+- [x] Detector tests
 - [x] `.env.example`
-- [x] Placeholder modules for next stages
 - [x] Load configuration from environment variables
-- [x] Add AbuseIPDB enrichment for IPv4 indicators
-- [x] Add VirusTotal enrichment for IPv4, domains, URLs, MD5, and SHA256
-- [x] Add DNS lookup for domains
+- [x] AbuseIPDB enrichment for IPv4 indicators
+- [x] VirusTotal enrichment for IPv4, domains, URLs, MD5, and SHA256
+- [x] DNS A record lookup for domains
+- [x] Basic verdict scoring
+- [x] Severity score
+- [x] Rich terminal report
+- [x] Analyst-style recommendations
+- [x] JSON export for single IOC mode
+- [x] Example JSON reports
 
 Next:
 
-- [ ] Normalize enrichment results
-- [ ] Add verdict scoring
-- [ ] Add formatted terminal output
-- [ ] Add JSON export
-- [ ] Add Markdown export
-- [ ] Add tests for AbuseIPDB, VirusTotal, DNS lookup, and verdict logic
-- [ ] Add example reports
+- [ ] Add tests for AbuseIPDB, VirusTotal, DNS lookup, verdict logic, reporter logic, and JSON export
+- [ ] Add combined JSON export for file mode
+- [ ] Normalize enrichment results with dedicated models
+- [ ] Add Markdown report export
+- [ ] Add screenshots or demo GIF for GitHub README
+- [ ] Improve error reporting in the Rich table for skipped, timeout, rate-limited, and error sources
+- [ ] Add more realistic sample IOC reports
 
 ---
 
