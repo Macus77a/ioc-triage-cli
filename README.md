@@ -112,7 +112,7 @@ Recommendations:
 Clone the repository:
 
 ```bash
-git clone https://github.com/macus450-crypto/ioc-triage-cli.git
+git clone https://github.com/Macus77a/ioc-triage-cli.git
 cd ioc-triage-cli
 ```
 
